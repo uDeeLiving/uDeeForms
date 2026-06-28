@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>uDee Living</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #f5f5f0; }
+    iframe { width: 100%; height: 100%; border: none; }
+    #loading {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      background: linear-gradient(135deg, #f5f5f0 0%, #e8e4df 100%);
+      font-family: 'Prompt', sans-serif;
+      z-index: 10;
+      transition: opacity 0.3s ease;
+    }
+    #loading .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #d4cfc8;
+      border-top-color: #A3B18A;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+    #loading p { color: #8B7E74; font-size: 14px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>กำลังเปิดฟอร์ม...</p>
+  </div>
+
+  <iframe id="app-frame" onload="hideLoading()"></iframe>
+
+  <script>
+    // === Google Apps Script Web App URL ===
+    var GAS_URL = "https://script.google.com/macros/s/AKfycbz_XjhzbJU42Kt1k5eMfjgLLmzaDkDeL6pbKxS8a7KRCJQR2Y2c09AjLcbQ4VYEpUmogg/exec";
+
+    // === ดึง liff.state หรือ query params จาก URL ===
+    var search = window.location.search;
+    var params = "";
+
+    if (search) {
+      var urlParams = new URLSearchParams(search);
+      var liffState = urlParams.get("liff.state");
+      if (liffState) {
+        // LINE ส่ง liff.state มา → ใช้เป็น query string ต่อท้าย GAS URL
+        params = liffState.startsWith("?") ? liffState : "?" + liffState;
+      } else {
+        // ไม่มี liff.state → ส่ง query string ทั้งหมดไปเลย
+        params = search;
+      }
+    }
+
+    // === โหลดฟอร์มใน iframe ===
+    document.getElementById("app-frame").src = GAS_URL + params;
+
+    // === ซ่อนหน้า Loading เมื่อ iframe โหลดเสร็จ ===
+    function hideLoading() {
+      var el = document.getElementById("loading");
+      if (el) {
+        el.style.opacity = "0";
+        setTimeout(function() { el.style.display = "none"; }, 300);
+      }
+    }
+  </script>
+
+</body>
+</html>
