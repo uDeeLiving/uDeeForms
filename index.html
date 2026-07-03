@@ -126,7 +126,8 @@
 
           // พยายามดึง Profile เพิ่มเติมเพื่อใช้ในหน้าลงทะเบียน
           liff.getProfile().then(profile => {
-             var profileParams = "uid=" + encodeURIComponent(currentUserId || "") +
+             var finalUid = profile.userId || currentUserId || "";
+             var profileParams = "uid=" + encodeURIComponent(finalUid) +
                                  "&displayName=" + encodeURIComponent(profile.displayName || "") + 
                                  "&pictureUrl=" + encodeURIComponent(profile.pictureUrl || "");
              loadAppFrame(profileParams);
