@@ -126,13 +126,24 @@
 
           // พยายามดึง Profile เพิ่มเติมเพื่อใช้ในหน้าลงทะเบียน
           liff.getProfile().then(profile => {
+             // ใช้ uid จาก profile เสมอ (ค่าที่ถูกต้องและเชื่อถือได้)
              var finalUid = profile.userId || currentUserId || "";
-             var profileParams = "uid=" + encodeURIComponent(finalUid) +
-                                 "&displayName=" + encodeURIComponent(profile.displayName || "") + 
-                                 "&pictureUrl=" + encodeURIComponent(profile.pictureUrl || "");
-             loadAppFrame(profileParams);
+             
+             // ถ้า URL มี uid อยู่แล้ว (ลิงก์เฉพาะบุคคล) ให้ส่งแค่ชื่อและรูปเพิ่มเติม
+             // เพื่อไม่ให้ uid ซ้ำกันซึ่งจะทำให้ค่า uid เปลี่ยน
+             if (expectedUid) {
+               var profileParams = "displayName=" + encodeURIComponent(profile.displayName || "") + 
+                                   "&pictureUrl=" + encodeURIComponent(profile.pictureUrl || "");
+               loadAppFrame(profileParams);
+             } else {
+               // ลิงก์ลงทะเบียนใหม่ที่ไม่มี uid → ส่ง uid จาก profile ไปด้วย
+               var profileParams = "uid=" + encodeURIComponent(finalUid) +
+                                   "&displayName=" + encodeURIComponent(profile.displayName || "") + 
+                                   "&pictureUrl=" + encodeURIComponent(profile.pictureUrl || "");
+               loadAppFrame(profileParams);
+             }
           }).catch(err => {
-             loadAppFrame("uid=" + encodeURIComponent(currentUserId || ""));
+             loadAppFrame(expectedUid ? "" : ("uid=" + encodeURIComponent(currentUserId || "")));
           });
         }
       }).catch(err => {
