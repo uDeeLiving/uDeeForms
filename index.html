@@ -126,11 +126,12 @@
 
           // พยายามดึง Profile เพิ่มเติมเพื่อใช้ในหน้าลงทะเบียน
           liff.getProfile().then(profile => {
-             var profileParams = "displayName=" + encodeURIComponent(profile.displayName || "") + 
+             var profileParams = "uid=" + encodeURIComponent(currentUserId || "") +
+                                 "&displayName=" + encodeURIComponent(profile.displayName || "") + 
                                  "&pictureUrl=" + encodeURIComponent(profile.pictureUrl || "");
              loadAppFrame(profileParams);
           }).catch(err => {
-             loadAppFrame("");
+             loadAppFrame("uid=" + encodeURIComponent(currentUserId || ""));
           });
         }
       }).catch(err => {
