@@ -8,7 +8,7 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #f5f5f0; }
     iframe { width: 100%; height: 100%; border: none; }
-    #loading {
+    #loading, #error-screen {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       display: flex; flex-direction: column;
       justify-content: center; align-items: center;
@@ -17,6 +17,14 @@
       z-index: 10;
       transition: opacity 0.3s ease;
     }
+    #error-screen {
+      display: none;
+      background: #fdf2f2;
+      color: #C0392B;
+      text-align: center;
+      padding: 20px;
+    }
+    #error-screen h2 { margin-bottom: 10px; }
     #loading .spinner {
       width: 36px; height: 36px;
       border: 3px solid #d4cfc8;
@@ -37,38 +45,102 @@
     <p>กำลังเปิดฟอร์ม...</p>
   </div>
 
+  <div id="error-screen">
+    <h2>ข้อมูลตัวตนไม่ตรงกัน ❌</h2>
+    <p>บัญชี LINE ปัจจุบันของคุณ<br>ไม่ตรงกับเจ้าของลิงก์ฟอร์มนี้</p>
+  </div>
+
   <iframe id="app-frame" onload="hideLoading()"></iframe>
 
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
     // === Google Apps Script Web App URL ===
     var GAS_URL = "https://script.google.com/macros/s/AKfycbz_XjhzbJU42Kt1k5eMfjgLLmzaDkDeL6pbKxS8a7KRCJQR2Y2c09AjLcbQ4VYEpUmogg/exec";
 
-    // === ดึง liff.state หรือ query params จาก URL ===
-    var search = window.location.search;
-    var params = "";
+    function loadAppFrame(profileParams) {
+      var search = window.location.search;
+      var params = "";
 
-    if (search) {
-      var urlParams = new URLSearchParams(search);
-      var liffState = urlParams.get("liff.state");
-      if (liffState) {
-        // LINE ส่ง liff.state มา → ใช้เป็น query string ต่อท้าย GAS URL
-        params = liffState.startsWith("?") ? liffState : "?" + liffState;
-      } else {
-        // ไม่มี liff.state → ส่ง query string ทั้งหมดไปเลย
-        params = search;
+      if (search) {
+        var urlParams = new URLSearchParams(search);
+        var liffState = urlParams.get("liff.state");
+        if (liffState) {
+          params = liffState.startsWith("?") ? liffState : "?" + liffState;
+        } else {
+          params = search;
+        }
       }
+      
+      if (profileParams) {
+        params += (params.indexOf("?") === -1 ? "?" : "&") + profileParams;
+      }
+
+      // โหลดฟอร์มใน iframe
+      document.getElementById("app-frame").src = GAS_URL + params;
     }
 
-    // === โหลดฟอร์มใน iframe ===
-    document.getElementById("app-frame").src = GAS_URL + params;
-
-    // === ซ่อนหน้า Loading เมื่อ iframe โหลดเสร็จ ===
     function hideLoading() {
       var el = document.getElementById("loading");
       if (el) {
         el.style.opacity = "0";
         setTimeout(function() { el.style.display = "none"; }, 300);
       }
+    }
+
+    function showError() {
+      document.getElementById("loading").style.display = "none";
+      document.getElementById("error-screen").style.display = "flex";
+      document.getElementById("app-frame").style.display = "none";
+    }
+
+    // === ตรวจสอบความปลอดภัย (Option 2) บน Github Pages ===
+    try {
+      liff.init({ liffId: "2010244543-U3WWt1y7" }).then(() => {
+        if (!liff.isLoggedIn()) {
+          liff.login({ redirectUri: window.location.href });
+        } else {
+          
+          // 1. ดึงข้อมูลตัวตนปัจจุบัน
+          var decoded = liff.getDecodedIDToken();
+          var currentUserId = decoded ? decoded.sub : null;
+          
+          // 2. ดึง uid จาก URL (ถ้ามี)
+          var search = window.location.search;
+          var urlParams = new URLSearchParams(search);
+          var liffState = urlParams.get("liff.state");
+          var expectedUid = null;
+          
+          if (liffState) {
+              var stateParams = new URLSearchParams(liffState.startsWith("?") ? liffState : "?" + liffState);
+              expectedUid = stateParams.get("uid");
+          } else {
+              expectedUid = urlParams.get("uid");
+          }
+
+          // 3. ตรวจสอบว่าตรงกันหรือไม่ (ป้องกันการสวมรอย)
+          // ถ้า URL ระบุ uid มา แต่ไม่ตรงกับ currentUserId ให้บล็อกทันที!
+          if (expectedUid && currentUserId && expectedUid !== currentUserId) {
+              showError();
+              return;
+          }
+
+          // พยายามดึง Profile เพิ่มเติมเพื่อใช้ในหน้าลงทะเบียน
+          liff.getProfile().then(profile => {
+             var profileParams = "displayName=" + encodeURIComponent(profile.displayName || "") + 
+                                 "&pictureUrl=" + encodeURIComponent(profile.pictureUrl || "");
+             loadAppFrame(profileParams);
+          }).catch(err => {
+             loadAppFrame("");
+          });
+        }
+      }).catch(err => {
+        console.error("LIFF Init Error:", err);
+        // Fallback in case LIFF fails
+        loadAppFrame("");
+      });
+    } catch(err) {
+      console.error(err);
+      loadAppFrame("");
     }
   </script>
 
