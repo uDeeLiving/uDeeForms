@@ -57,7 +57,7 @@
     // === Google Apps Script Web App URL ===
     var GAS_URL = "https://script.google.com/macros/s/AKfycbz_XjhzbJU42Kt1k5eMfjgLLmzaDkDeL6pbKxS8a7KRCJQR2Y2c09AjLcbQ4VYEpUmogg/exec";
 
-    function loadAppFrame(profileParams) {
+    function loadAppFrame(extraParams) {
       var search = window.location.search;
       var params = "";
 
@@ -71,11 +71,10 @@
         }
       }
       
-      if (profileParams) {
-        params += (params.indexOf("?") === -1 ? "?" : "&") + profileParams;
+      if (extraParams) {
+        params += (params.indexOf("?") === -1 ? "?" : "&") + extraParams;
       }
 
-      // โหลดฟอร์มใน iframe
       document.getElementById("app-frame").src = GAS_URL + params;
     }
 
@@ -93,67 +92,44 @@
       document.getElementById("app-frame").style.display = "none";
     }
 
-    // === ตรวจสอบความปลอดภัย (Option 2) บน Github Pages ===
-    try {
-      liff.init({ liffId: "2010244543-U3WWt1y7" }).then(() => {
-        if (!liff.isLoggedIn()) {
-          liff.login({ redirectUri: window.location.href });
-        } else {
-          
-          // 1. ดึงข้อมูลตัวตนปัจจุบัน
-          var decoded = liff.getDecodedIDToken();
-          var currentUserId = decoded ? decoded.sub : null;
-          
-          // 2. ดึง uid จาก URL (ถ้ามี)
-          var search = window.location.search;
-          var urlParams = new URLSearchParams(search);
-          var liffState = urlParams.get("liff.state");
-          var expectedUid = null;
-          
-          if (liffState) {
-              var stateParams = new URLSearchParams(liffState.startsWith("?") ? liffState : "?" + liffState);
-              expectedUid = stateParams.get("uid");
-          } else {
-              expectedUid = urlParams.get("uid");
-          }
+    // === ตรวจสอบ URL Parameters ===
+    var _p = new URLSearchParams(window.location.search);
+    var _ls = _p.get("liff.state");
+    var _sp = _ls ? new URLSearchParams(_ls.startsWith("?") ? _ls : "?" + _ls) : _p;
+    var _action = _sp.get("action");
+    var _uid    = _sp.get("uid");
 
-          // 3. ตรวจสอบว่าตรงกันหรือไม่ (ป้องกันการสวมรอย)
-          // ถ้า URL ระบุ uid มา แต่ไม่ตรงกับ currentUserId ให้บล็อกทันที!
-          if (expectedUid && currentUserId && expectedUid !== currentUserId) {
-              showError();
-              return;
-          }
-
-          // พยายามดึง Profile เพิ่มเติมเพื่อใช้ในหน้าลงทะเบียน
-          liff.getProfile().then(profile => {
-             // ใช้ uid จาก profile เสมอ (ค่าที่ถูกต้องและเชื่อถือได้)
-             var finalUid = profile.userId || currentUserId || "";
-             
-             // ถ้า URL มี uid อยู่แล้ว (ลิงก์เฉพาะบุคคล) ให้ส่งแค่ชื่อและรูปเพิ่มเติม
-             // เพื่อไม่ให้ uid ซ้ำกันซึ่งจะทำให้ค่า uid เปลี่ยน
-             if (expectedUid) {
-               var profileParams = "displayName=" + encodeURIComponent(profile.displayName || "") + 
-                                   "&pictureUrl=" + encodeURIComponent(profile.pictureUrl || "");
-               loadAppFrame(profileParams);
-             } else {
-               // ลิงก์ลงทะเบียนใหม่ที่ไม่มี uid → ส่ง uid จาก profile ไปด้วย
-               var profileParams = "uid=" + encodeURIComponent(finalUid) +
-                                   "&displayName=" + encodeURIComponent(profile.displayName || "") + 
-                                   "&pictureUrl=" + encodeURIComponent(profile.pictureUrl || "");
-               loadAppFrame(profileParams);
-             }
-          }).catch(err => {
-             loadAppFrame(expectedUid ? "" : ("uid=" + encodeURIComponent(currentUserId || "")));
-          });
-        }
-      }).catch(err => {
-        console.error("LIFF Init Error:", err);
-        // Fallback in case LIFF fails
-        loadAppFrame("");
-      });
-    } catch(err) {
-      console.error(err);
+    // กรณีที่ 1: มี uid ในลิงก์แล้ว (บอทส่งมา) → โหลดตรงๆ ไม่ต้อง Login LINE
+    // กรณีที่ 2: เป็นหน้า Admin → โหลดตรงๆ ไม่ต้อง Login LINE
+    if (_uid || _action === "admin_login" || _action === "admin_dashboard" || _action === "admin") {
       loadAppFrame("");
+
+    } else {
+      // กรณีที่ 3: ไม่มี uid (เปิดลิงก์จากภายนอก LINE หรือลิงก์พิเศษ)
+      // → ใช้ LIFF เพื่อดึง uid ให้อัตโนมัติ
+      try {
+        liff.init({ liffId: "2010244543-U3WWt1y7" }).then(() => {
+          if (!liff.isLoggedIn()) {
+            liff.login({ redirectUri: window.location.href });
+          } else {
+            liff.getProfile().then(profile => {
+              var uid = profile.userId || "";
+              var profileParams = "uid=" + encodeURIComponent(uid) +
+                                  "&displayName=" + encodeURIComponent(profile.displayName || "") +
+                                  "&pictureUrl=" + encodeURIComponent(profile.pictureUrl || "");
+              loadAppFrame(profileParams);
+            }).catch(() => {
+              loadAppFrame("");
+            });
+          }
+        }).catch(err => {
+          console.error("LIFF Init Error:", err);
+          loadAppFrame("");
+        });
+      } catch(err) {
+        console.error(err);
+        loadAppFrame("");
+      }
     }
   </script>
 
